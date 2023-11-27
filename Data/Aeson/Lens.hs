@@ -25,7 +25,7 @@ module Data.Aeson.Lens (
 import           Control.Applicative
 import           Control.Lens
 import           Data.Aeson
-import qualified Data.HashMap.Strict as HMS
+import qualified Data.Aeson.KeyMap as KM
 import           Data.Maybe
 import           Data.Monoid
 import qualified Data.Text           as T
@@ -36,22 +36,22 @@ import qualified Data.Vector         as V
 -- >>> import qualified Data.ByteString.Lazy.Char8 as L
 -- >>> import Data.Text ()
 
-data ValueIx = ArrIx Int | ObjIx T.Text
+data ValueIx = ArrIx Int | ObjIx Key
 
 -- | Lens of Value
 valueAt :: (FromJSON u, ToJSON v)
            => ValueIx
            -> IndexedLens ValueIx (Maybe Value) (Maybe Value) (Maybe u) (Maybe v)
 valueAt k f (fmap toJSON -> v) = go k v <$> indexed f k (lu k v) where
-  go (ObjIx ix) (Just (Object o)) Nothing  = Just $ Object $ HMS.delete ix o
-  go (ObjIx ix) (Just (Object o)) (Just v) = Just $ Object $ HMS.insert ix (toJSON v) o
-  go (ObjIx ix) _                 (Just v) = Just $ Object $ HMS.fromList [(ix, toJSON v)]
+  go (ObjIx ix) (Just (Object o)) Nothing  = Just $ Object $ KM.delete ix o
+  go (ObjIx ix) (Just (Object o)) (Just v) = Just $ Object $ KM.insert ix (toJSON v) o
+  go (ObjIx ix) _                 (Just v) = Just $ Object $ KM.fromList [(ix, toJSON v)]
   go (ArrIx ix) (Just (Array  a)) Nothing  = Just $ Array $ updateV ix Null a
   go (ArrIx ix) (Just (Array  a)) (Just v) = Just $ Array $ updateV ix (toJSON v) a
   go (ArrIx ix) _                 (Just v) = Just $ Array $ updateV ix (toJSON v) mempty
   go _ v _ = v
 
-  lu (ObjIx ix) (Just (Object o)) = fromJSONMaybe =<< HMS.lookup ix o
+  lu (ObjIx ix) (Just (Object o)) = fromJSONMaybe =<< KM.lookup ix o
   lu (ArrIx ix) (Just (Array a)) | ix >= 0 && ix < V.length a = fromJSONMaybe $ a V.! ix
   lu _ _ = Nothing
 {-# INLINE valueAt #-}
@@ -127,13 +127,13 @@ nth' = valueAt . ArrIx
 -- >>> L.unpack $ encode x
 -- "{\"b\":{\"c\":true},\"a\":2.23}"
 key :: (FromJSON v, ToJSON v)
-       => T.Text
+       => Key
        -> IndexedLens' ValueIx (Maybe Value) (Maybe v)
 key = key'
 {-# INLINE key #-}
 
 key' :: (FromJSON u, ToJSON v)
-       => T.Text
+       => Key
        -> IndexedLens ValueIx (Maybe Value) (Maybe Value) (Maybe u) (Maybe v)
 key' = valueAt . ObjIx
 {-# INLINE key' #-}
@@ -166,16 +166,16 @@ traverseArray' f m = case m of
 -- >>> w & catMaybes . toListOf (traverseArray . traverseObject) :: [Value]
 -- [String "tanakh",Number 29,String "nushio",Number 28]
 traverseObject :: (FromJSON v, ToJSON v)
-                  => IndexedTraversal' T.Text (Maybe Value) (Maybe v)
+                  => IndexedTraversal' Key (Maybe Value) (Maybe v)
 traverseObject = traverseObject'
 {-# INLINE traverseObject #-}
 
 -- | Type-changing indexed traversal of Object
 traverseObject' :: (FromJSON u, ToJSON v)
-                  => IndexedTraversal T.Text (Maybe Value) (Maybe Value) (Maybe u) (Maybe v)
+                  => IndexedTraversal Key (Maybe Value) (Maybe Value) (Maybe u) (Maybe v)
 traverseObject' f m = case m of
-  Just (Object (expand . HMS.toList -> v)) ->
-    Just . Object . HMS.fromList . catMaybes . collapse <$> traverseAssocList f v
+  Just (Object (expand . KM.toList -> v)) ->
+    Just . Object . KM.fromList . catMaybes . collapse <$> traverseAssocList f v
   v -> pure v
   where
   expand = map (_2 %~ fromJSONMaybe)
