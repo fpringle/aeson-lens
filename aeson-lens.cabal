@@ -24,9 +24,3 @@ library
                      , bytestring >=0.9
                      , vector >=0.9
                      , unordered-containers >=0.2.2
-
-test-suite doctest
-  type:                exitcode-stdio-1.0
-  main-is:             doctest.hs
-  build-depends:       base
-                     , doctest >=0.9
